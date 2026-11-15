@@ -1,0 +1,10 @@
+{
+  "name": "Remix Живой Аватар — Автономная студия",
+  "description": "Автономный интерактивный голосовой аватар с сетчатой анимацией лица на Canvas, синхронизацией губ и локальным диалоговым движком.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

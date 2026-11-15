@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Живой Аватар — Автономная студия</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --surface: #121721;
+      --surface-2: #18202e;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #10b981;
+      --amber: #f59e0b;
+      --font-sans: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-sans); overflow: hidden; }
+
+    .app-shell {
+      display: grid;
+      grid-template-rows: 56px 1fr 78px;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Top Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      color: #f8fafc;
+    }
+
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+
+    .segmented {
+      display: inline-flex;
+      background: #0d1119;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .seg-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .seg-btn.active {
+      background: var(--surface-2);
+      color: #f8fafc;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn:hover { background: #202a3c; border-color: rgba(255, 255, 255, 0.22); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* Workspace Body */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    @media (max-width: 960px) {
+      .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 320px; }
+    }
+
+    /* Center Avatar Stage */
+    .stage {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: radial-gradient(circle at 50% 42%, #131a27 0%, #0b0e14 72%);
+      overflow: hidden;
+    }
+
+    .avatar-frame {
+      position: relative;
+      width: min(512px, 100%, calc(100vh - 230px));
+      aspect-ratio: 1 / 1;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0e131c;
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+      user-select: none;
+    }
+
+    canvas#avatarCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .drop-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.86);
+      border: 2px dashed var(--accent);
+      border-radius: 16px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #f8fafc;
+      font-size: 15px;
+      font-weight: 600;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .stage.drag-over .drop-overlay { display: flex; }
+
+    .stage-meta {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 13px;
+      color: var(--muted);
+      width: min(512px, 100%);
+      justify-content: space-between;
+    }
+
+    .status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+
+    .audio-bars {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 16px;
+    }
+
+    .audio-bar {
+      width: 3px;
+      height: 4px;
+      background: #475569;
+      border-radius: 2px;
+      transition: height 0.06s linear, background-color 0.15s;
+    }
+
+    .edit-banner {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      background: rgba(11, 14, 20, 0.84);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #e0f2fe;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .edit-banner.visible { display: flex; }
+
+    /* Right Inspector */
+    .inspector {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      min-height: 0;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--border);
+      background: #0f131c;
+      padding: 6px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 8px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .tab-btn.active {
+      background: var(--surface-2);
+      color: #f8fafc;
+    }
+
+    .tab-panel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    .tab-panel.active { display: flex; }
+
+    /* Chat */
+    .chat-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .msg {
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      max-width: 92%;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #1d3557;
+      color: #f1f5f9;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+
+    .msg.avatar {
+      align-self: flex-start;
+      background: var(--surface-2);
+      color: #e2e8f0;
+      border: 1px solid var(--border);
+    }
+
+    .msg-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Controls & Sliders */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .control-group:last-child { border-bottom: none; }
+
+    .control-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .mono-val {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 999px;
+      background: #232b3a;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #0b0e14;
+      cursor: pointer;
+    }
+
+    .field-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .input-ctrl, .select-ctrl, .textarea-ctrl {
+      width: 100%;
+      background: #0d1119;
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .input-ctrl:focus, .select-ctrl:focus, .textarea-ctrl:focus {
+      border-color: var(--accent);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* Bottom Dock */
+    .bottom-dock {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+
+    .mic-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 46px;
+      padding: 0 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: #f8fafc;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .mic-btn:hover { background: #222d40; }
+    .mic-btn.listening { background: #7f1d1d; border-color: var(--danger); color: #fee2e2; }
+    .mic-btn.speaking { background: #064e3b; border-color: var(--success); color: #d1fae5; }
+
+    .text-form {
+      flex: 1;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .chat-input {
+      flex: 1;
+      height: 46px;
+      background: #0d1119;
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 0 14px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+
+    .chat-input:focus { border-color: var(--accent); }
+
+    .send-btn {
+      height: 46px;
+      padding: 0 20px;
+    }
+
+    .notice-bar {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      padding: 10px 12px;
+      background: #0d1119;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .toast {
+      position: fixed;
+      top: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      border: 1px solid var(--border-strong);
+      color: #f8fafc;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Desktop Bar -->
+    <header class="topbar">
+      <div class="brand">Живой Аватар</div>
+      <div class="topbar-controls">
+        <div class="segmented" role="group" aria-label="Демонстрационные портреты">
+          <button type="button" class="seg-btn active" data-demo="elena">Елена</button>
+          <button type="button" class="seg-btn" data-demo="artem">Артём</button>
+        </div>
+        <input type="file" id="photoInput" accept="image/*" hidden />
+        <button type="button" class="btn" id="uploadPhotoBtn">Загрузить фото лица</button>
+        <button type="button" class="btn btn-primary" id="saveProfileBtn">Сохранить профиль аватара</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <section class="stage" id="dropStage">
+        <div class="avatar-frame" id="avatarFrame">
+          <canvas id="avatarCanvas" width="512" height="512"></canvas>
+          <div class="edit-banner" id="editBanner">
+            <span>Режим коррекции: перетащите голубые точки на глаза, нос, губы и контур лица</span>
+            <button type="button" class="btn btn-sm" id="doneEditBtn">Готово</button>
+          </div>
+          <div class="drop-overlay">
+            <div>Отпустите изображение для захвата лица</div>
+            <div style="font-size:12px;color:#94a3b8;font-weight:400;">Поддерживаются JPG, PNG, WebP</div>
+          </div>
+        </div>
+
+        <div class="stage-meta">
+          <div class="status-label" id="statusLabel">Готов к общению · Офлайн-движок</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="detectionHint" style="font-size:12px;">Перетащите фото в окно</span>
+            <div class="audio-bars" id="audioBars" aria-hidden="true">
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <div class="tabs">
+          <button type="button" class="tab-btn active" data-tab="chat">Диалог</button>
+          <button type="button" class="tab-btn" data-tab="face">Настройка лица</button>
+          <button type="button" class="tab-btn" data-tab="brain">Мозги и голос</button>
+        </div>
+
+        <!-- Tab 1: Chat -->
+        <div class="tab-panel active" id="tab-chat">
+          <div class="chat-list" id="chatList"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);">
+            <span id="memoryInfo" style="font-size:12px;color:var(--muted);">Память имени: не задано</span>
+            <button type="button" class="btn btn-sm" id="clearChatBtn">Очистить</button>
+          </div>
+        </div>
+
+        <!-- Tab 2: Face Calibration -->
+        <div class="tab-panel" id="tab-face">
+          <div class="control-group">
+            <div class="control-header">
+              <label for="mouthAmpSlider">Амплитуда рта</label>
+              <span class="mono-val" id="mouthAmpVal">1.00×</span>
+            </div>
+            <input type="range" id="mouthAmpSlider" min="0.3" max="2.0" step="0.05" value="1.0" />
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <label for="blinkFreqSlider">Частота моргания</label>
+              <span class="mono-val" id="blinkFreqVal">1.00×</span>
+            </div>
+            <input type="range" id="blinkFreqSlider" min="0.2" max="2.5" step="0.05" value="1.0" />
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <label for="trackSlider">Слежение за курсором</label>
+              <span class="mono-val" id="trackVal">1.00×</span>
+            </div>
+            <input type="range" id="trackSlider" min="0" max="1.5" step="0.05" value="1.0" />
+          </div>
+
+          <div class="control-group">
+            <label class="toggle-row">
+              <span>Показать сетку деформации</span>
+              <input type="checkbox" id="showMeshToggle" />
+            </label>
+            <label class="toggle-row" style="margin-top:6px;">
+              <span>Ручная коррекция точек</span>
+              <input type="checkbox" id="editPointsToggle" />
+            </label>
+            <button type="button" class="btn btn-sm" id="resetPointsBtn" style="margin-top:8px;">Сбросить точки к исходным</button>
+          </div>
+
+          <div class="notice-bar">
+            Если загруженное фото под углом или в очках, включите «Ручная коррекция точек» и поправьте контур век и губ прямо на портрете.
+          </div>
+        </div>
+
+        <!-- Tab 3: Brain & Voice -->
+        <div class="tab-panel" id="tab-brain">
+          <div class="control-group">
+            <span class="field-label">Источник интеллекта</span>
+            <div class="segmented" style="width:100%;display:grid;grid-template-columns:1fr 1fr;">
+              <button type="button" class="seg-btn active" data-brain="offline">Офлайн-движок</button>
+              <button type="button" class="seg-btn" data-brain="ollama">Ollama / LM Studio</button>
+            </div>
+          </div>
+
+          <div id="ollamaSection" style="display:none;flex-direction:column;gap:12px;">
+            <div>
+              <label class="field-label" for="ollamaUrl">Адрес локального API (Ollama / LM Studio)</label>
+              <input type="text" class="input-ctrl" id="ollamaUrl" value="http://localhost:11434/api/generate" />
+            </div>
+            <div>
+              <label class="field-label" for="ollamaModel">Имя модели</label>
+              <input type="text" class="input-ctrl" id="ollamaModel" value="llama3.2" placeholder="llama3.2 / qwen2.5 / gemma2" />
+            </div>
+            <div>
+              <label class="field-label" for="systemPrompt">Характер аватара</label>
+              <textarea class="textarea-ctrl" id="systemPrompt" rows="2">Ты дружелюбный и остроумный виртуальный собеседник.</textarea>
+            </div>
+            <div class="notice-bar">
+              Для работы Ollama из браузера запустите её с разрешённым CORS: <span style="font-family:var(--font-mono);color:#cbd5e1;">OLLAMA_ORIGINS=* ollama serve</span>. Поддерживаются также <span style="font-family:var(--font-mono);color:#cbd5e1;">/v1/chat/completions</span> (LM Studio).
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="field-label" for="voiceSelect">Системный голос (SpeechSynthesis)</label>
+            <select class="select-ctrl" id="voiceSelect"></select>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <label for="rateSlider">Скорость речи</label>
+              <span class="mono-val" id="rateVal">1.00×</span>
+            </div>
+            <input type="range" id="rateSlider" min="0.7" max="1.4" step="0.05" value="1.0" />
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <label for="pitchSlider">Тон голоса</label>
+              <span class="mono-val" id="pitchVal">1.00</span>
+            </div>
+            <input type="range" id="pitchSlider" min="0.7" max="1.3" step="0.05" value="1.0" />
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Bottom Speech & Input Bar -->
+    <footer class="bottom-dock">
+      <button type="button" class="mic-btn" id="micBtn">
+        <span id="micLabel">Говорить (Микрофон)</span>
+      </button>
+      <form class="text-form" id="chatForm">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Напишите сообщение аватару (например: Привет! Меня зовут Алексей / Расскажи шутку)..." autocomplete="off" />
+        <button type="submit" class="btn btn-primary send-btn">Отправить</button>
+      </form>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'live_avatar_standalone_profile_v1';
+      const CANVAS_SIZE = 512;
+
+      const state = {
+        sourceType: 'demo',
+        demoId: 'elena',
+        sourceCanvas: null,
+        baseLandmarks: [],
+        defaultLandmarks: [],
+        meshPoints: [],
+        triangles: [],
+        eyelidSkinColor: '#D9A78B',
+        settings: {
+          mouthAmplitude: 1.0,
+          blinkFrequency: 1.0,
+          headTracking: 1.0,
+          idleMotion: 1.0,
+          showMeshOverlay: false,
+        },
+        brain: {
+          mode: 'offline',
+          ollamaUrl: 'http://localhost:11434/api/generate',
+          ollamaModel: 'llama3.2',
+          systemPrompt: 'Ты дружелюбный и остроумный виртуальный собеседник.',
+          voiceURI: '',
+          speechRate: 1.0,
+          speechPitch: 1.0,
+        },
+        userName: null,
+        history: [],
+        editMode: false,
+        hoveredPoint: null,
+        draggingPoint: null,
+        lookTargetX: 0,
+        lookTargetY: 0,
+        lookX: 0,
+        lookY: 0,
+        lastMouseMove: performance.now(),
+        blinkAmount: 0,
+        nextBlinkAt: performance.now() + 2600,
+        blinkPhase: 'open',
+        blinkStart: 0,
+        mouthOpen: 0,
+        status: 'idle',
+        faceApiReady: false,
+        faceApiLoading: null,
+        recognition: null,
+        speakingActive: false,
+        speechText: '',
+        speechCharIndex: 0,
+        speechStart: 0,
+        speechEstMs: 1200,
+        speechLastBoundary: 0,
+        smoothAmp: 0,
+      };
+
+      // DOM elements
+      const canvas = document.getElementById('avatarCanvas');
+      const ctx = canvas.getContext('2d');
+      const dropStage = document.getElementById('dropStage');
+      const photoInput = document.getElementById('photoInput');
+      const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
+      const saveProfileBtn = document.getElementById('saveProfileBtn');
+      const statusLabel = document.getElementById('statusLabel');
+      const detectionHint = document.getElementById('detectionHint');
+      const audioBars = Array.from(document.querySelectorAll('#audioBars .audio-bar'));
+      const editBanner = document.getElementById('editBanner');
+      const doneEditBtn = document.getElementById('doneEditBtn');
+      const chatList = document.getElementById('chatList');
+      const chatForm = document.getElementById('chatForm');
+      const chatInput = document.getElementById('chatInput');
+      const micBtn = document.getElementById('micBtn');
+      const micLabel = document.getElementById('micLabel');
+      const memoryInfo = document.getElementById('memoryInfo');
+      const toastEl = document.getElementById('toast');
+
+      function showToast(msg) {
+        toastEl.textContent = msg;
+        toastEl.classList.add('show');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => toastEl.classList.remove('show'), 2800);
+      }
+
+      function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+      // 1. Procedural Demo Portraits
+      function buildCanonicalLandmarks(cx, cy, faceW, faceH, isElena) {
+        const pts = [];
+        for (let i = 0; i <= 16; i++) {
+          const t = (i / 16) * Math.PI;
+          const angle = Math.PI - t;
+          const rx = faceW * (isElena ? 0.96 : 1.0);
+          const ry = faceH * (i >= 6 && i <= 10 ? 0.96 : 0.94);
+          const chinPinch = isElena ? 0.88 : 0.93;
+          const xf = Math.cos(angle);
+          const yf = Math.sin(angle);
+          pts.push({
+            x: cx + xf * rx * (1 - 0.12 * yf * (1 - chinPinch)),
+            y: cy + 6 + yf * ry,
+          });
+        }
+        const browY = cy - 48;
+        pts.push(
+          { x: cx - 72, y: browY + 8 }, { x: cx - 58, y: browY - 1 }, { x: cx - 42, y: browY - 4 },
+          { x: cx - 26, y: browY - 1 }, { x: cx - 14, y: browY + 3 },
+          { x: cx + 14, y: browY + 3 }, { x: cx + 26, y: browY - 1 }, { x: cx + 42, y: browY - 4 },
+          { x: cx + 58, y: browY - 1 }, { x: cx + 72, y: browY + 8 }
+        );
+        pts.push(
+          { x: cx, y: cy - 26 }, { x: cx, y: cy - 8 }, { x: cx, y: cy + 10 }, { x: cx, y: cy + 25 },
+          { x: cx - 19, y: cy + 32 }, { x: cx - 9, y: cy + 35 }, { x: cx, y: cy + 37 },
+          { x: cx + 9, y: cy + 35 }, { x: cx + 19, y: cy + 32 }
+        );
+        const eyeY = cy - 18, leCx = cx - 43, reCx = cx + 43;
+        pts.push(
+          { x: leCx - 19, y: eyeY + 1 }, { x: leCx - 8, y: eyeY - 7.5 }, { x: leCx + 8, y: eyeY - 7.5 },
+          { x: leCx + 19, y: eyeY + 2 }, { x: leCx + 7, y: eyeY + 7.5 }, { x: leCx - 7, y: eyeY + 7.5 },
+          { x: reCx - 19, y: eyeY + 2 }, { x: reCx - 8, y: eyeY - 7.5 }, { x: reCx + 8, y: eyeY - 7.5 },
+          { x: reCx + 19, y: eyeY + 1 }, { x: reCx + 7, y: eyeY + 7.5 }, { x: reCx - 7, y: eyeY + 7.5 }
+        );
+        const mouthY = cy + 68, mhw = isElena ? 32 : 34;
+        pts.push(
+          { x: cx - mhw, y: mouthY }, { x: cx - 19, y: mouthY - 7 }, { x: cx - 7, y: mouthY - 10 },
+          { x: cx, y: mouthY - 8 }, { x: cx + 7, y: mouthY - 10 }, { x: cx + 19, y: mouthY - 7 },
+          { x: cx + mhw, y: mouthY }, { x: cx + 20, y: mouthY + 9 }, { x: cx + 8, y: mouthY + 13 },
+          { x: cx, y: mouthY + 14 }, { x: cx - 8, y: mouthY + 13 }, { x: cx - 20, y: mouthY + 9 },
+          { x: cx - mhw + 6, y: mouthY }, { x: cx - 10, y: mouthY - 2 }, { x: cx, y: mouthY - 1.5 },
+          { x: cx + 10, y: mouthY - 2 }, { x: cx + mhw - 6, y: mouthY }, { x: cx + 10, y: mouthY + 2.5 },
+          { x: cx, y: mouthY + 3 }, { x: cx - 10, y: mouthY + 2.5 }
+        );
+        return pts;
+      }
+
+      function createDemoPortrait(id) {
+        const c = document.createElement('canvas');
+        c.width = CANVAS_SIZE;
+        c.height = CANVAS_SIZE;
+        const g = c.getContext('2d');
+        const isElena = id === 'elena';
+        const cx = 256, cy = 248, faceW = isElena ? 114 : 122, faceH = isElena ? 150 : 156;
+
+        const bg = g.createRadialGradient(cx, cy - 30, 40, cx, cy, 380);
+        bg.addColorStop(0, isElena ? '#2A3346' : '#26303D');
+        bg.addColorStop(0.55, isElena ? '#19202D' : '#161C26');
+        bg.addColorStop(1, '#0C0F15');
+        g.fillStyle = bg;
+        g.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+        const rim = g.createRadialGradient(cx, cy - 10, 80, cx, cy, 240);
+        rim.addColorStop(0, isElena ? 'rgba(96,165,250,0.14)' : 'rgba(56,189,248,0.12)');
+        rim.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = rim;
+        g.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+        if (isElena) {
+          const hb = g.createLinearGradient(cx - 160, 80, cx + 160, 440);
+          hb.addColorStop(0, '#2D1B14'); hb.addColorStop(0.5, '#4A2B1D'); hb.addColorStop(1, '#1E110C');
+          g.fillStyle = hb;
+          g.beginPath();
+          g.moveTo(cx - 140, 210);
+          g.bezierCurveTo(cx - 165, 310, cx - 150, 430, cx - 110, 512);
+          g.lineTo(cx + 110, 512);
+          g.bezierCurveTo(cx + 150, 430, cx + 165, 310, cx + 140, 210);
+          g.bezierCurveTo(cx + 135, 95, cx - 135, 95, cx - 140, 210);
+          g.fill();
+        }
+
+        const skinBase = isElena ? '#ECC1A6' : '#E2B496';
+        const skinShadow = isElena ? '#C99374' : '#BC8769';
+        const skinHi = isElena ? '#F8D8C3' : '#F2C9AE';
+
+        // Shoulders
+        g.beginPath();
+        g.moveTo(56, 512);
+        g.quadraticCurveTo(100, 422, 188, 405);
+        g.lineTo(324, 405);
+        g.quadraticCurveTo(412, 422, 456, 512);
+        g.closePath();
+        const sg = g.createLinearGradient(cx, 400, cx, 512);
+        sg.addColorStop(0, isElena ? '#2B364A' : '#242C3A');
+        sg.addColorStop(1, '#12161E');
+        g.fillStyle = sg;
+        g.fill();
+
+        // Neck
+        const nw = isElena ? 46 : 56;
+        const ng = g.createLinearGradient(cx - nw, 340, cx + nw, 435);
+        ng.addColorStop(0, skinShadow); ng.addColorStop(0.5, skinBase); ng.addColorStop(1, skinShadow);
+        g.fillStyle = ng;
+        g.beginPath();
+        g.moveTo(cx - nw, 335);
+        g.lineTo(cx - nw - 8, 420);
+        g.quadraticCurveTo(cx, 450, cx + nw + 8, 420);
+        g.lineTo(cx + nw, 335);
+        g.fill();
+
+        const ns = g.createRadialGradient(cx, 358, 12, cx, 368, 72);
+        ns.addColorStop(0, 'rgba(65,28,16,0.42)'); ns.addColorStop(1, 'rgba(65,28,16,0)');
+        g.fillStyle = ns;
+        g.fillRect(cx - 80, 335, 160, 80);
+
+        [-1, 1].forEach((side) => {
+          g.fillStyle = skinShadow;
+          g.beginPath();
+          g.ellipse(cx + side * (faceW - 2), cy + 6, 14, 28, side * 0.14, 0, Math.PI * 2);
+          g.fill();
+        });
+
+        const landmarks = buildCanonicalLandmarks(cx, cy, faceW, faceH, isElena);
+
+        // Face shape
+        g.save();
+        g.beginPath();
+        g.moveTo(landmarks[0].x, landmarks[0].y);
+        for (let i = 1; i <= 16; i++) {
+          const prev = landmarks[i - 1], curr = landmarks[i];
+          g.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
+        }
+        g.lineTo(landmarks[16].x, landmarks[16].y);
+        g.bezierCurveTo(cx + faceW + 4, cy - faceH * 0.85, cx - faceW - 4, cy - faceH * 0.85, landmarks[0].x, landmarks[0].y);
+        g.closePath();
+
+        const fg = g.createRadialGradient(cx - 12, cy - 28, 18, cx, cy, faceH * 1.15);
+        fg.addColorStop(0, skinHi); fg.addColorStop(0.55, skinBase); fg.addColorStop(1, skinShadow);
+        g.fillStyle = fg;
+        g.fill();
+        g.clip();
+
+        [cx - 56, cx + 56].forEach((bx) => {
+          const bg2 = g.createRadialGradient(bx, cy + 20, 4, bx, cy + 20, 44);
+          bg2.addColorStop(0, isElena ? 'rgba(218,112,102,0.22)' : 'rgba(198,104,88,0.14)');
+          bg2.addColorStop(1, 'rgba(0,0,0,0)');
+          g.fillStyle = bg2;
+          g.fillRect(bx - 50, cy - 30, 100, 100);
+        });
+
+        if (!isElena) {
+          const bd = g.createLinearGradient(cx, cy + 40, cx, cy + faceH + 10);
+          bd.addColorStop(0, 'rgba(42,34,30,0)');
+          bd.addColorStop(0.5, 'rgba(42,34,30,0.16)');
+          bd.addColorStop(1, 'rgba(32,26,22,0.3)');
+          g.fillStyle = bd;
+          g.fillRect(cx - faceW, cy + 38, faceW * 2, faceH);
+        }
+        g.restore();
+
+        // Nose
+        g.strokeStyle = 'rgba(255,240,228,0.28)';
+        g.lineWidth = 7; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(landmarks[27].x, landmarks[27].y); g.lineTo(landmarks[30].x, landmarks[30].y - 2); g.stroke();
+        g.fillStyle = 'rgba(82,38,24,0.55)';
+        g.beginPath();
+        g.ellipse(landmarks[32].x, landmarks[32].y - 1, 4.5, 2.5, -0.25, 0, Math.PI * 2);
+        g.ellipse(landmarks[34].x, landmarks[34].y - 1, 4.5, 2.5, 0.25, 0, Math.PI * 2);
+        g.fill();
+
+        // Eyes
+        const irisCol = isElena ? '#4C7A96' : '#5E6E52';
+        [landmarks.slice(36, 42), landmarks.slice(42, 48)].forEach((pts) => {
+          const ex = (pts[0].x + pts[3].x) / 2;
+          const ey = (pts[1].y + pts[2].y + pts[4].y + pts[5].y) / 4;
+          g.save();
+          g.beginPath();
+          g.moveTo(pts[0].x, pts[0].y);
+          g.bezierCurveTo(pts[1].x - 4, pts[1].y - 2, pts[2].x + 4, pts[2].y - 2, pts[3].x, pts[3].y);
+          g.bezierCurveTo(pts[4].x + 4, pts[4].y + 2, pts[5].x - 4, pts[5].y + 2, pts[0].x, pts[0].y);
+          g.closePath();
+          g.fillStyle = '#EEF1F6';
+          g.fill();
+          g.save();
+          g.clip();
+          const ig = g.createRadialGradient(ex, ey, 2, ex, ey, 9.8);
+          ig.addColorStop(0, '#1A2433'); ig.addColorStop(0.38, irisCol); ig.addColorStop(1, '#0F172A');
+          g.fillStyle = ig;
+          g.beginPath(); g.arc(ex, ey + 0.5, 9.8, 0, Math.PI * 2); g.fill();
+          g.fillStyle = '#090D14';
+          g.beginPath(); g.arc(ex, ey + 0.5, 4.3, 0, Math.PI * 2); g.fill();
+          g.fillStyle = 'rgba(255,255,255,0.9)';
+          g.beginPath(); g.arc(ex - 3, ey - 2.6, 2.1, 0, Math.PI * 2); g.fill();
+          g.restore();
+          g.strokeStyle = '#1D1412'; g.lineWidth = isElena ? 2.8 : 2.2; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(pts[0].x - 1, pts[0].y);
+          g.bezierCurveTo(pts[1].x - 4, pts[1].y - 2, pts[2].x + 4, pts[2].y - 2, pts[3].x + 1, pts[3].y);
+          g.stroke();
+          g.restore();
+        });
+
+        // Eyebrows
+        [landmarks.slice(17, 22), landmarks.slice(22, 27)].forEach((pts) => {
+          g.strokeStyle = isElena ? '#3A2319' : '#261E19';
+          g.lineWidth = isElena ? 6.5 : 8.5; g.lineCap = 'round'; g.lineJoin = 'round';
+          g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+          g.stroke();
+        });
+
+        // Lips
+        const lipOuter = landmarks.slice(48, 60);
+        g.beginPath();
+        g.moveTo(lipOuter[0].x, lipOuter[0].y);
+        for (let i = 1; i < lipOuter.length; i++) g.lineTo(lipOuter[i].x, lipOuter[i].y);
+        g.closePath();
+        g.fillStyle = isElena ? '#BF5B60' : '#AF6F65';
+        g.fill();
+        g.strokeStyle = 'rgba(72,24,24,0.75)'; g.lineWidth = 1.8;
+        g.beginPath();
+        [48, 60, 61, 62, 63, 64, 54].forEach((idx, k) => {
+          if (k === 0) g.moveTo(landmarks[idx].x, landmarks[idx].y);
+          else g.lineTo(landmarks[idx].x, landmarks[idx].y);
+        });
+        g.stroke();
+
+        // Front Hair
+        if (isElena) {
+          const hg = g.createLinearGradient(cx - 120, 50, cx + 120, 260);
+          hg.addColorStop(0, '#3D2216'); hg.addColorStop(0.5, '#5A3422'); hg.addColorStop(1, '#26140D');
+          g.fillStyle = hg;
+          g.beginPath(); g.moveTo(cx - 10, 80);
+          g.bezierCurveTo(cx - 95, 72, cx - 148, 130, cx - 134, 245);
+          g.bezierCurveTo(cx - 122, 185, cx - 95, 136, cx - 10, 128); g.fill();
+          g.beginPath(); g.moveTo(cx - 15, 80);
+          g.bezierCurveTo(cx + 95, 68, cx + 148, 128, cx + 134, 245);
+          g.bezierCurveTo(cx + 120, 180, cx + 92, 136, cx - 15, 128); g.fill();
+        } else {
+          const hg = g.createLinearGradient(cx - 110, 65, cx + 110, 190);
+          hg.addColorStop(0, '#1E1A18'); hg.addColorStop(0.5, '#342C27'); hg.addColorStop(1, '#191513');
+          g.fillStyle = hg;
+          g.beginPath();
+          g.moveTo(cx - faceW + 2, cy - 34);
+          g.bezierCurveTo(cx - faceW - 14, cy - 130, cx - 60, cy - 190, cx + 8, cy - 188);
+          g.bezierCurveTo(cx + 85, cy - 186, cx + faceW + 14, cy - 130, cx + faceW - 2, cy - 34);
+          g.bezierCurveTo(cx + faceW - 12, cy - 94, cx + 60, cy - 116, cx + 12, cy - 122);
+          g.bezierCurveTo(cx - 48, cy - 116, cx - faceW + 10, cy - 96, cx - faceW + 2, cy - 34);
+          g.fill();
+        }
+
+        return { canvas: c, landmarks };
+      }
+
+      // 2. Delaunay Triangulation & Mesh Warping
+      function buildMeshPoints(l68) {
+        const pts = l68.map((p) => ({ x: p.x, y: p.y }));
+        const faceCenterX = (pts[0].x + pts[16].x) / 2;
+        const browMidY = (pts[19].y + pts[24].y) / 2;
+        const faceW = Math.max(80, pts[16].x - pts[0].x);
+        pts.push(
+          { x: clamp(faceCenterX - faceW * 0.45, 16, 496), y: clamp(browMidY - faceW * 0.35, 12, 496) },
+          { x: clamp(faceCenterX, 16, 496), y: clamp(browMidY - faceW * 0.48, 12, 496) },
+          { x: clamp(faceCenterX + faceW * 0.45, 16, 496), y: clamp(browMidY - faceW * 0.35, 12, 496) },
+          { x: clamp(faceCenterX, 16, 496), y: clamp(pts[8].y + 70, 20, 500) }
+        );
+        const S = CANVAS_SIZE, M = S / 2;
+        pts.push(
+          { x: 0, y: 0 }, { x: M, y: 0 }, { x: S, y: 0 },
+          { x: S, y: M * 0.65 }, { x: S, y: M * 1.35 }, { x: S, y: S },
+          { x: M * 1.4, y: S }, { x: M, y: S }, { x: M * 0.6, y: S },
+          { x: 0, y: S }, { x: 0, y: M * 1.35 }, { x: 0, y: M * 0.65 }
+        );
+        return pts;
+      }
+
+      function triangulateDelaunay(points) {
+        const n = points.length;
+        const allPts = points.concat([{ x: -2000, y: -2000 }, { x: 4000, y: -2000 }, { x: 512, y: 4000 }]);
+        const makeTri = (i0, i1, i2) => {
+          const p0 = allPts[i0], p1 = allPts[i1], p2 = allPts[i2];
+          const ax = p0.x, ay = p0.y, bx = p1.x, by = p1.y, cx = p2.x, cy = p2.y;
+          const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+          if (Math.abs(d) < 1e-8) return { i0, i1, i2, cx: 0, cy: 0, r2: -1 };
+          const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+          const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
+          const uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
+          return { i0, i1, i2, cx: ux, cy: uy, r2: (ux - ax) ** 2 + (uy - ay) ** 2 };
+        };
+        let tris = [makeTri(n, n + 1, n + 2)];
+        for (let pIdx = 0; pIdx < n; pIdx++) {
+          const p = allPts[pIdx], bad = [], good = [];
+          for (const tri of tris) {
+            if ((p.x - tri.cx) ** 2 + (p.y - tri.cy) ** 2 <= tri.r2 + 1e-6) bad.push(tri);
+            else good.push(tri);
+          }
+          const edges = [];
+          const toggleEdge = (a, b) => {
+            for (let i = 0; i < edges.length; i++) {
+              if ((edges[i][0] === a && edges[i][1] === b) || (edges[i][0] === b && edges[i][1] === a)) {
+                edges.splice(i, 1); return;
+              }
+            }
+            edges.push([a, b]);
+          };
+          bad.forEach((b) => { toggleEdge(b.i0, b.i1); toggleEdge(b.i1, b.i2); toggleEdge(b.i2, b.i0); });
+          tris = good;
+          edges.forEach(([a, b]) => tris.push(makeTri(a, b, pIdx)));
+        }
+        return tris.filter((t) => t.i0 < n && t.i1 < n && t.i2 < n && t.r2 > 0);
+      }
+
+      function sampleEyelidSkin(srcCanvas, l68) {
+        try {
+          const g = srcCanvas.getContext('2d');
+          const p = { x: clamp(Math.round((l68[37].x + l68[19].x) / 2), 2, 509), y: clamp(Math.round((l68[37].y + l68[19].y) / 2 + 3), 2, 509) };
+          const d = g.getImageData(p.x - 1, p.y - 1, 3, 3).data;
+          let r = 0, gr = 0, b = 0, c = 0;
+          for (let i = 0; i < d.length; i += 4) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; c++; }
+          return `rgb(${Math.round((r / c) * 0.92)},${Math.round((gr / c) * 0.9)},${Math.round((b / c) * 0.88)})`;
+        } catch { return '#D9A78B'; }
+      }
+
+      function rebuildMesh() {
+        state.meshPoints = buildMeshPoints(state.baseLandmarks);
+        state.triangles = triangulateDelaunay(state.meshPoints);
+        state.eyelidSkinColor = sampleEyelidSkin(state.sourceCanvas, state.baseLandmarks);
+      }
+
+      function drawTriangle(img, x0, y0, x1, y1, x2, y2, u0, v0, u1, v1, u2, v2) {
+        const dx1 = x1 - x0, dy1 = y1 - y0, dx2 = x2 - x0, dy2 = y2 - y0;
+        const det = dx1 * dy2 - dx2 * dy1;
+        if (Math.abs(det) < 1e-5) return;
+        const du1 = u1 - u0, dv1 = v1 - v0, du2 = u2 - u0, dv2 = v2 - v0;
+        const a = (du1 * dy2 - du2 * dy1) / det;
+        const b = (dv1 * dy2 - dv2 * dy1) / det;
+        const c = (dx1 * du2 - dx2 * du1) / det;
+        const d = (dx1 * dv2 - dx2 * dv1) / det;
+        const e = u0 - a * x0 - c * y0;
+        const f = v0 - b * x0 - d * y0;
+        const cx = (u0 + u1 + u2) / 3, cy = (v0 + v1 + v2) / 3;
+        const exp = (px, py) => { const vx = px - cx, vy = py - cy, l = Math.hypot(vx, vy) || 1; return [px + (vx / l) * 0.65, py + (vy / l) * 0.65]; };
+        const [eu0, ev0] = exp(u0, v0), [eu1, ev1] = exp(u1, v1), [eu2, ev2] = exp(u2, v2);
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(eu0, ev0); ctx.lineTo(eu1, ev1); ctx.lineTo(eu2, ev2); ctx.closePath(); ctx.clip();
+        ctx.setTransform(a, b, c, d, e, f);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+
+      function renderFrame(now) {
+        const tSec = now * 0.001;
+        // Blink schedule
+        if (state.blinkPhase === 'open' && now >= state.nextBlinkAt) {
+          state.blinkPhase = 'closing'; state.blinkStart = now;
+        }
+        if (state.blinkPhase === 'closing') {
+          const p = (now - state.blinkStart) / 85;
+          if (p >= 1) { state.blinkAmount = 1; state.blinkPhase = 'opening'; state.blinkStart = now; }
+          else state.blinkAmount = p;
+        } else if (state.blinkPhase === 'opening') {
+          const p = (now - state.blinkStart) / 135;
+          if (p >= 1) {
+            state.blinkAmount = 0; state.blinkPhase = 'open';
+            const baseInterval = (2200 + Math.random() * 2800) / Math.max(0.2, state.settings.blinkFrequency);
+            state.nextBlinkAt = now + baseInterval;
+          } else state.blinkAmount = 1 - p;
+        }
+
+        // Smooth gaze return if cursor idle
+        if (now - state.lastMouseMove > 3500) {
+          state.lookTargetX *= 0.97; state.lookTargetY *= 0.97;
+        }
+        state.lookX += (state.lookTargetX - state.lookX) * 0.09;
+        state.lookY += (state.lookTargetY - state.lookY) * 0.09;
+
+        // Deform points
+        const base = state.meshPoints;
+        const def = base.map((p) => ({ x: p.x, y: p.y }));
+        const noseTip = base[30];
+        const faceW = Math.max(80, base[16].x - base[0].x);
+        const scale = faceW / 220;
+        const swayX = (Math.sin(tSec * 0.85) * 2.8 + Math.sin(tSec * 0.37) * 1.4) * state.settings.idleMotion * scale;
+        const swayY = (Math.sin(tSec * 1.45) * 2.2 + Math.cos(tSec * 0.55) * 1.1) * state.settings.idleMotion * scale;
+        const swayRoll = Math.sin(tSec * 0.62) * 0.018 * state.settings.idleMotion;
+        const headShiftX = state.lookX * 14 * state.settings.headTracking * scale + swayX;
+        const headShiftY = state.lookY * 10 * state.settings.headTracking * scale + swayY;
+        const yawAngle = state.lookX * 0.14 * state.settings.headTracking;
+
+        for (let i = 0; i <= 71; i++) {
+          const p = base[i], rx = p.x - noseTip.x, ry = p.y - noseTip.y;
+          let w = 1.0;
+          if (i === 71) w = 0.25;
+          else if (i >= 68 || i <= 2 || i >= 14) w = 0.78;
+          else if (i <= 5 || i >= 11) w = 0.88;
+          const cr = Math.cos(swayRoll * w), sr = Math.sin(swayRoll * w);
+          const rotX = rx * cr - ry * sr, rotY = rx * sr + ry * cr;
+          const dist = Math.min(1, Math.hypot(rx, ry) / (faceW * 0.65));
+          const boost = 1 - dist * 0.38;
+          const yawComp = 1 - Math.abs(yawAngle) * 0.12 - (rx / faceW) * yawAngle * 0.22;
+          def[i].x = noseTip.x + rotX * yawComp + headShiftX * w * (0.85 + 0.25 * boost);
+          def[i].y = noseTip.y + rotY + headShiftY * w * (0.85 + 0.2 * boost);
+        }
+
+        if (state.blinkAmount > 0.005) {
+          def[37].y += (def[41].y - def[37].y) * state.blinkAmount * 0.92;
+          def[38].y += (def[40].y - def[38].y) * state.blinkAmount * 0.92;
+          def[43].y += (def[47].y - def[43].y) * state.blinkAmount * 0.92;
+          def[44].y += (def[46].y - def[44].y) * state.blinkAmount * 0.92;
+        }
+
+        const mAmp = state.mouthOpen * state.settings.mouthAmplitude;
+        if (mAmp > 0.005) {
+          const jd = mAmp * 23 * scale;
+          [49, 50, 51, 52, 53, 61, 62, 63].forEach((i) => def[i].y -= mAmp * 2.2 * scale);
+          def[48].x += mAmp * 2.4 * scale; def[60].x += mAmp * 2.4 * scale;
+          def[54].x -= mAmp * 2.4 * scale; def[64].x -= mAmp * 2.4 * scale;
+          def[48].y += jd * 0.14; def[54].y += jd * 0.14;
+          const mapW = { 65: 0.85, 66: 1, 67: 0.85, 55: 0.58, 56: 0.88, 57: 0.98, 58: 0.88, 59: 0.58, 5: 0.16, 6: 0.36, 7: 0.55, 8: 0.64, 9: 0.55, 10: 0.36, 11: 0.16 };
+          Object.keys(mapW).forEach((k) => { def[Number(k)].y += jd * mapW[k]; });
+        }
+
+        ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        ctx.drawImage(state.sourceCanvas, 0, 0);
+        for (let t = 0; t < state.triangles.length; t++) {
+          const tri = state.triangles[t];
+          drawTriangle(
+            state.sourceCanvas,
+            base[tri.i0].x, base[tri.i0].y, base[tri.i1].x, base[tri.i1].y, base[tri.i2].x, base[tri.i2].y,
+            def[tri.i0].x, def[tri.i0].y, def[tri.i1].x, def[tri.i1].y, def[tri.i2].x, def[tri.i2].y
+          );
+        }
+
+        if (mAmp > 0.05) {
+          const inner = [60, 61, 62, 63, 64, 65, 66, 67].map((i) => def[i]);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(inner[0].x, inner[0].y);
+          for (let i = 1; i < inner.length; i++) ctx.lineTo(inner[i].x, inner[i].y);
+          ctx.closePath();
+          ctx.fillStyle = `rgba(22, 6, 8, ${Math.min(0.92, mAmp * 1.4)})`;
+          ctx.fill();
+          if (mAmp > 0.22) {
+            ctx.clip();
+            ctx.fillStyle = `rgba(235,232,228,${Math.min(0.55, (mAmp - 0.22) * 0.85)})`;
+            ctx.beginPath();
+            ctx.ellipse((inner[0].x + inner[4].x) / 2, inner[2].y + 2, Math.abs(inner[4].x - inner[0].x) * 0.34, 4.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        if (state.blinkAmount > 0.12) {
+          [[36, 37, 38, 39, 40, 41], [42, 43, 44, 45, 46, 47]].forEach((ids) => {
+            const p = ids.map((i) => def[i]);
+            const uY = (p[1].y + p[2].y) / 2, lY = (p[4].y + p[5].y) / 2;
+            const cY = uY + (lY - uY) * state.blinkAmount;
+            ctx.save();
+            ctx.globalAlpha = Math.min(0.95, state.blinkAmount * 1.15);
+            ctx.fillStyle = state.eyelidSkinColor;
+            ctx.beginPath();
+            ctx.moveTo(p[0].x - 2, p[0].y);
+            ctx.quadraticCurveTo((p[1].x + p[2].x) / 2, uY - 4, p[3].x + 2, p[3].y);
+            ctx.quadraticCurveTo((p[4].x + p[5].x) / 2, cY + 2, p[0].x - 2, p[0].y);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(20,15,14,0.78)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y);
+            ctx.quadraticCurveTo((p[1].x + p[2].x) / 2, cY + 1.5, p[3].x, p[3].y);
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
+        if (state.settings.showMeshOverlay || state.editMode) {
+          ctx.save();
+          if (state.settings.showMeshOverlay) {
+            ctx.strokeStyle = 'rgba(96,165,250,0.28)'; ctx.lineWidth = 0.85;
+            ctx.beginPath();
+            state.triangles.forEach((tri) => {
+              ctx.moveTo(def[tri.i0].x, def[tri.i0].y);
+              ctx.lineTo(def[tri.i1].x, def[tri.i1].y);
+              ctx.lineTo(def[tri.i2].x, def[tri.i2].y);
+              ctx.lineTo(def[tri.i0].x, def[tri.i0].y);
+            });
+            ctx.stroke();
+          }
+          if (state.editMode) {
+            for (let i = 0; i < 68; i++) {
+              const p = def[i];
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, state.draggingPoint === i ? 5.2 : state.hoveredPoint === i ? 4.4 : 2.9, 0, Math.PI * 2);
+              ctx.fillStyle = state.draggingPoint === i ? '#F59E0B' : '#38BDF8';
+              ctx.fill();
+              ctx.strokeStyle = '#0B0E14'; ctx.lineWidth = 1.1; ctx.stroke();
+            }
+          }
+          ctx.restore();
+        }
+
+        // Update audio bars
+        audioBars.forEach((bar, idx) => {
+          const factor = [0.6, 0.95, 1.0, 0.85, 0.55][idx];
+          const h = Math.round(4 + state.mouthOpen * 12 * factor);
+          bar.style.height = h + 'px';
+          bar.style.backgroundColor = state.mouthOpen > 0.08 ? '#10B981' : '#475569';
+        });
+
+        requestAnimationFrame(renderFrame);
+      }
+
+      // 3. Face API Detection + Photo Upload
+      async function ensureFaceApi() {
+        if (state.faceApiReady && window.faceapi) return true;
+        if (state.faceApiLoading) return state.faceApiLoading;
+        state.faceApiLoading = (async () => {
+          try {
+            if (!window.faceapi) {
+              await new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js';
+                s.async = true; s.crossOrigin = 'anonymous';
+                s.onload = res; s.onerror = rej;
+                document.head.appendChild(s);
+              });
+            }
+            const mUrl = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/model';
+            await Promise.all([
+              window.faceapi.nets.tinyFaceDetector.loadFromUri(mUrl),
+              window.faceapi.nets.faceLandmark68TinyNet.loadFromUri(mUrl),
+            ]);
+            state.faceApiReady = true;
+            return true;
+          } catch {
+            state.faceApiLoading = null;
+            return false;
+          }
+        })();
+        return state.faceApiLoading;
+      }
+
+      async function handleImageFile(file) {
+        if (!file || !file.type.startsWith('image/')) {
+          showToast('Пожалуйста, выберите файл изображения');
+          return;
+        }
+        detectionHint.textContent = 'Анализ лица...';
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = async () => {
+          URL.revokeObjectURL(url);
+          const out = document.createElement('canvas');
+          out.width = CANVAS_SIZE; out.height = CANVAS_SIZE;
+          const og = out.getContext('2d');
+          og.fillStyle = '#121721'; og.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+          const ready = await ensureFaceApi();
+          let detected = false;
+          let mapped = null;
+          if (ready && window.faceapi) {
+            try {
+              const det = await window.faceapi
+                .detectSingleFace(img, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+                .withFaceLandmarks(true);
+              if (det && det.landmarks) {
+                const box = det.detection.box;
+                const cx = box.x + box.width * 0.5;
+                const cy = box.y + box.height * 0.44;
+                const crop = Math.max(box.width, box.height) * 2.05;
+                const sx = cx - crop / 2, sy = cy - crop / 2;
+                const sc = CANVAS_SIZE / crop;
+                og.drawImage(img, -sx * sc, -sy * sc, img.naturalWidth * sc, img.naturalHeight * sc);
+                mapped = det.landmarks.positions.map((p) => ({ x: (p.x - sx) * sc, y: (p.y - sy) * sc }));
+                detected = true;
+              }
+            } catch {}
+          }
+
+          if (!detected) {
+            const minS = Math.min(img.naturalWidth, img.naturalHeight);
+            const sx = (img.naturalWidth - minS) / 2, sy = (img.naturalHeight - minS) * 0.32;
+            og.drawImage(img, sx, sy, minS, minS, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            mapped = buildCanonicalLandmarks(256, 248, 114, 150, true);
+            detectionHint.textContent = 'Базовая сетка · подправьте точки';
+            showToast('Лицо не распознано — включите «Ручная коррекция точек» для подгонки');
+          } else {
+            detectionHint.textContent = 'Лицо захвачено (68 точек)';
+            showToast('Лицо автоматически захвачено');
+          }
+
+          state.sourceType = 'custom';
+          state.sourceCanvas = out;
+          state.baseLandmarks = mapped;
+          state.defaultLandmarks = mapped.map((p) => ({ x: p.x, y: p.y }));
+          document.querySelectorAll('[data-demo]').forEach((b) => b.classList.remove('active'));
+          rebuildMesh();
+        };
+        img.src = url;
+      }
+
+      // 4. Dialogue Engine
+      const JOKES = [
+        'Программист ложится спать: ставит рядом два стакана. Один с водой — если захочется пить, а второй пустой — если не захочется.',
+        'На собеседовании: — Сколько будет семью восемь? — Сорок два! — Неправильно! — Зато быстро!',
+        'Утро понедельника — единственное время, когда кофе официально считается операционной системой организма.',
+        'Оптимист видит стакан наполовину полным, пессимист — наполовину пустым, а инженер — с двойным запасом прочности.'
+      ];
+      let lastReply = '';
+      function pick(arr) {
+        const f = arr.filter((x) => x !== lastReply);
+        const r = (f.length ? f : arr)[Math.floor(Math.random() * (f.length || arr.length))];
+        lastReply = r; return r;
+      }
+
+      function extractName(text) {
+        const m = text.match(/(?:меня\s+зовут|мо[её]\s+имя|зови\s+меня)\s+([А-ЯЁA-Z][а-яёa-z-]{1,22})/i)
+          || text.match(/^я\s+([А-ЯЁ][а-яё]{2,18})(?:[!.,\s]|$)/);
+        const stop = new Set(['тут','здесь','дома','устал','рад','готов','хочу','могу','просто','хорошо']);
+        if (m && m[1] && !stop.has(m[1].toLowerCase())) {
+          return m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+        }
+        return null;
+      }
+
+      function offlineReply(text) {
+        const l = text.toLowerCase().trim();
+        const foundName = extractName(text);
+        if (foundName) {
+          state.userName = foundName;
+          memoryInfo.textContent = 'Память имени: ' + foundName;
+          return `Очень приятно, ${foundName}! Я запомнил твоё имя. О чём поболтаем?`;
+        }
+        if (/(как\s+меня\s+зовут|помнишь\s+ли?\s*мо[её]\s+имя)/i.test(l)) {
+          return state.userName ? `Конечно помню! Тебя зовут ${state.userName}.` : 'Ты пока не представился. Скажи «Меня зовут...», и я запомню!';
+        }
+        if (/^(привет|здравствуй|здравствуйте|хай|салют|добрый)/i.test(l)) {
+          return state.userName ? `Привет, ${state.userName}! Рад снова тебя видеть.` : 'Привет! Я твой автономный аватар. Кстати, как тебя зовут?';
+        }
+        if (/(как\s+дела|как\s+ты|что\s+нового)/i.test(l)) {
+          return pick(['Всё отлично! Работаю полностью локально прямо у тебя на ПК. А у тебя как дела?', 'Бодрое настроение! Готов поболтать или рассказать шутку.']);
+        }
+        if (/(шутк|анекдот|рассмеши|пошути)/i.test(l)) return pick(JOKES);
+        if (/(который\s+час|сколько\s+времени|какое\s+сегодня\s+число)/i.test(l)) {
+          const d = new Date();
+          return `Сейчас ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}, сегодня ${d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}.`;
+        }
+        const mm = text.match(/(-?\d+(?:[.,]\d+)?)\s*([+\-*/])\s*(-?\d+(?:[.,]\d+)?)/);
+        if (mm) {
+          const a = parseFloat(mm[1].replace(',', '.')), b = parseFloat(mm[3].replace(',', '.'));
+          if (mm[2] === '/' && b === 0) return 'На ноль делить нельзя!';
+          const res = mm[2] === '+' ? a + b : mm[2] === '-' ? a - b : mm[2] === '*' ? a * b : a / b;
+          return `Получается ровно ${Number.isInteger(res) ? res : res.toFixed(2)}.`;
+        }
+        if (/(кто\s+ты|что\s+ты\s+умеешь)/i.test(l)) {
+          return 'Я автономный голосовой аватар с живой сетчатой анимацией на Canvas. Могу общаться офлайн или через твою локальную нейросеть Ollama.';
+        }
+        return pick([
+          `${state.userName ? state.userName + ', и' : 'И'}нтересная мысль! Расскажи подробнее.`,
+          `Понимаю тебя${state.userName ? ', ' + state.userName : ''}. Продолжай, я внимательно слушаю!`,
+          'Любопытно! Можешь спросить про время, попросить шутку или подключить Ollama в настройках.'
+        ]);
+      }
+
+      async function ollamaReply(text) {
+        const url = state.brain.ollamaUrl.trim();
+        const sys = `${state.brain.systemPrompt}${state.userName ? ' Пользователя зовут ' + state.userName + '.' : ''} Отвечай кратко и живо на русском языке (1-3 предложения).`;
+        const isOpenAI = url.includes('/v1/chat/completions');
+        const payload = isOpenAI
+          ? { model: state.brain.ollamaModel || 'local-model', messages: [{ role: 'system', content: sys }, { role: 'user', content: text }], temperature: 0.7 }
+          : { model: state.brain.ollamaModel || 'llama3.2', prompt: `${sys}\nПользователь: ${text}\nАватар:`, stream: false };
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        return (isOpenAI ? data.choices?.[0]?.message?.content : data.response || data.message?.content || '').trim();
+      }
+
+      // 5. Speech Synthesis + Virtual Lip-Sync Amplitude Analyzer
+      function refreshVoices() {
+        if (!('speechSynthesis' in window)) return;
+        const voices = window.speechSynthesis.getVoices().sort((a, b) => (a.lang.startsWith('ru') ? 0 : 1) - (b.lang.startsWith('ru') ? 0 : 1));
+        const sel = document.getElementById('voiceSelect');
+        sel.innerHTML = '';
+        voices.forEach((v) => {
+          const opt = document.createElement('option');
+          opt.value = v.voiceURI;
+          opt.textContent = `${v.name} (${v.lang})`;
+          sel.appendChild(opt);
+        });
+        if (state.brain.voiceURI && voices.some((v) => v.voiceURI === state.brain.voiceURI)) {
+          sel.value = state.brain.voiceURI;
+        } else {
+          const best = voices.find((v) => v.lang.toLowerCase().startsWith('ru') && /natural|google|yandex|milena|irina|pavel/i.test(v.name)) || voices.find((v) => v.lang.toLowerCase().startsWith('ru')) || voices[0];
+          if (best) { sel.value = best.voiceURI; state.brain.voiceURI = best.voiceURI; }
+        }
+      }
+
+      function updateStatusUI(mode) {
+        state.status = mode;
+        micBtn.classList.remove('listening', 'speaking');
+        if (mode === 'listening') {
+          micBtn.classList.add('listening');
+          micLabel.textContent = 'Слушаю... (Нажмите, чтобы остановить)';
+          statusLabel.textContent = 'Слушаю микрофон...';
+        } else if (mode === 'speaking') {
+          micBtn.classList.add('speaking');
+          micLabel.textContent = 'Говорю... (Нажмите, чтобы прервать)';
+          statusLabel.textContent = 'Говорю';
+        } else if (mode === 'thinking') {
+          micLabel.textContent = 'Думаю...';
+          statusLabel.textContent = 'Формирую ответ...';
+        } else {
+          micLabel.textContent = 'Говорить (Микрофон)';
+          statusLabel.textContent = 'Готов к общению · ' + (state.brain.mode === 'ollama' ? 'Локальная LLM' : 'Офлайн-движок');
+        }
+      }
+
+      function speakText(text) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        state.speakingActive = true;
+        state.speechText = text;
+        state.speechCharIndex = 0;
+        state.speechStart = performance.now();
+        state.speechLastBoundary = state.speechStart;
+        state.speechEstMs = Math.max(900, (text.length / 13) * 1000 / state.brain.speechRate);
+        updateStatusUI('speaking');
+
+        const loopAmp = (now) => {
+          if (!state.speakingActive) {
+            state.smoothAmp *= 0.72;
+            state.mouthOpen = state.smoothAmp < 0.01 ? 0 : state.smoothAmp;
+            if (state.mouthOpen > 0) requestAnimationFrame(loopAmp);
+            return;
+          }
+          const el = now - state.speechStart;
+          const fbIdx = Math.min(state.speechText.length - 1, Math.floor((el / state.speechEstMs) * state.speechText.length));
+          const idx = now - state.speechLastBoundary < 550 ? state.speechCharIndex : fbIdx;
+          const ch = state.speechText[idx] || ' ';
+          const wave = 0.5 + 0.5 * Math.sin(el * 0.022);
+          let target = 0.28 + 0.28 * wave;
+          if (/[.,!?;:—-]/.test(ch)) target = 0.04;
+          else if (ch === ' ') target = 0.14 * wave;
+          else if (/[аоуэыиеёюяaeiouy]/i.test(ch)) target = 0.6 + 0.36 * wave;
+          state.smoothAmp += (target - state.smoothAmp) * (target > state.smoothAmp ? 0.38 : 0.22);
+          state.mouthOpen = clamp(state.smoothAmp, 0, 1);
+          requestAnimationFrame(loopAmp);
+        };
+
+        if ('speechSynthesis' in window) {
+          const utt = new SpeechSynthesisUtterance(text);
+          utt.lang = 'ru-RU';
+          utt.rate = state.brain.speechRate;
+          utt.pitch = state.brain.speechPitch;
+          const v = window.speechSynthesis.getVoices().find((x) => x.voiceURI === state.brain.voiceURI);
+          if (v) utt.voice = v;
+          utt.onstart = () => requestAnimationFrame(loopAmp);
+          utt.onboundary = (e) => { if (typeof e.charIndex === 'number') { state.speechCharIndex = e.charIndex; state.speechLastBoundary = performance.now(); } };
+          utt.onend = utt.onerror = () => { state.speakingActive = false; updateStatusUI('idle'); };
+          window.speechSynthesis.speak(utt);
+          setTimeout(() => { if (state.speakingActive) requestAnimationFrame(loopAmp); }, 100);
+        } else {
+          requestAnimationFrame(loopAmp);
+          setTimeout(() => { state.speakingActive = false; updateStatusUI('idle'); }, state.speechEstMs);
+        }
+      }
+
+      function addMessage(role, text, sourceLabel) {
+        state.history.push({ role, text });
+        const div = document.createElement('div');
+        div.className = 'msg ' + role;
+        const meta = document.createElement('div');
+        meta.className = 'msg-meta';
+        meta.textContent = (role === 'user' ? 'Вы' : 'Аватар') + (sourceLabel ? ' · ' + sourceLabel : '');
+        const body = document.createElement('div');
+        body.textContent = text;
+        div.appendChild(meta);
+        div.appendChild(body);
+        chatList.appendChild(div);
+        chatList.scrollTop = chatList.scrollHeight;
+      }
+
+      async function handleUserMessage(rawText) {
+        const text = rawText.trim();
+        if (!text) return;
+        addMessage('user', text);
+        updateStatusUI('thinking');
+        let reply = '';
+        let src = 'Офлайн';
+        if (state.brain.mode === 'ollama') {
+          try {
+            reply = await ollamaReply(text);
+            src = 'Ollama';
+          } catch (err) {
+            showToast('Ollama недоступна — ответ сформирован офлайн-движком');
+            reply = offlineReply(text);
+          }
+        } else {
+          reply = offlineReply(text);
+        }
+        addMessage('avatar', reply, src);
+        speakText(reply);
+      }
+
+      // 6. UI Events
+      document.querySelectorAll('[data-demo]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.demo;
+          document.querySelectorAll('[data-demo]').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          const res = createDemoPortrait(id);
+          state.sourceType = 'demo';
+          state.demoId = id;
+          state.sourceCanvas = res.canvas;
+          state.baseLandmarks = res.landmarks;
+          state.defaultLandmarks = res.landmarks.map((p) => ({ x: p.x, y: p.y }));
+          detectionHint.textContent = 'Демо-портрет · 68 точек';
+          rebuildMesh();
+        });
+      });
+
+      uploadPhotoBtn.addEventListener('click', () => photoInput.click());
+      photoInput.addEventListener('change', (e) => {
+        if (e.target.files?.[0]) handleImageFile(e.target.files[0]);
+        photoInput.value = '';
+      });
+
+      dropStage.addEventListener('dragover', (e) => { e.preventDefault(); dropStage.classList.add('drag-over'); });
+      dropStage.addEventListener('dragleave', () => dropStage.classList.remove('drag-over'));
+      dropStage.addEventListener('drop', (e) => {
+        e.preventDefault(); dropStage.classList.remove('drag-over');
+        if (e.dataTransfer?.files?.[0]) handleImageFile(e.dataTransfer.files[0]);
+      });
+
+      // Tabs
+      document.querySelectorAll('[data-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-tab]').forEach((b) => b.classList.remove('active'));
+          document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+      });
+
+      // Brain Switch
+      document.querySelectorAll('[data-brain]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.brain.mode = btn.dataset.brain;
+          document.querySelectorAll('[data-brain]').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById('ollamaSection').style.display = state.brain.mode === 'ollama' ? 'flex' : 'none';
+          updateStatusUI(state.status);
+        });
+      });
+
+      // Sliders
+      const bindSlider = (id, valId, fmt, setter) => {
+        const el = document.getElementById(id), out = document.getElementById(valId);
+        el.addEventListener('input', () => {
+          const v = parseFloat(el.value);
+          out.textContent = fmt(v);
+          setter(v);
+        });
+      };
+      bindSlider('mouthAmpSlider', 'mouthAmpVal', (v) => v.toFixed(2) + '×', (v) => state.settings.mouthAmplitude = v);
+      bindSlider('blinkFreqSlider', 'blinkFreqVal', (v) => v.toFixed(2) + '×', (v) => state.settings.blinkFrequency = v);
+      bindSlider('trackSlider', 'trackVal', (v) => v.toFixed(2) + '×', (v) => state.settings.headTracking = v);
+      bindSlider('rateSlider', 'rateVal', (v) => v.toFixed(2) + '×', (v) => state.brain.speechRate = v);
+      bindSlider('pitchSlider', 'pitchVal', (v) => v.toFixed(2), (v) => state.brain.speechPitch = v);
+
+      document.getElementById('showMeshToggle').addEventListener('change', (e) => state.settings.showMeshOverlay = e.target.checked);
+      const editToggle = document.getElementById('editPointsToggle');
+      editToggle.addEventListener('change', (e) => {
+        state.editMode = e.target.checked;
+        editBanner.classList.toggle('visible', state.editMode);
+      });
+      doneEditBtn.addEventListener('click', () => { state.editMode = false; editToggle.checked = false; editBanner.classList.remove('visible'); });
+      document.getElementById('resetPointsBtn').addEventListener('click', () => {
+        state.baseLandmarks = state.defaultLandmarks.map((p) => ({ x: p.x, y: p.y }));
+        rebuildMesh();
+        showToast('Ключевые точки сброшены');
+      });
+
+      // Interactive landmark dragging
+      function getCanvasCoords(ev) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: ((ev.clientX - rect.left) / rect.width) * CANVAS_SIZE, y: ((ev.clientY - rect.top) / rect.height) * CANVAS_SIZE };
+      }
+
+      window.addEventListener('mousemove', (ev) => {
+        state.lastMouseMove = performance.now();
+        state.lookTargetX = clamp((ev.clientX / window.innerWidth) * 2 - 1, -1, 1);
+        state.lookTargetY = clamp((ev.clientY / window.innerHeight) * 2 - 1, -1, 1);
+
+        if (state.editMode) {
+          const p = getCanvasCoords(ev);
+          if (state.draggingPoint !== null) {
+            state.baseLandmarks[state.draggingPoint].x = clamp(p.x, 12, 500);
+            state.baseLandmarks[state.draggingPoint].y = clamp(p.y, 12, 500);
+            rebuildMesh();
+          } else {
+            let best = null, bestD = 12;
+            for (let i = 0; i < 68; i++) {
+              const d = Math.hypot(state.baseLandmarks[i].x - p.x, state.baseLandmarks[i].y - p.y);
+              if (d < bestD) { bestD = d; best = i; }
+            }
+            state.hoveredPoint = best;
+            canvas.style.cursor = best !== null ? 'grab' : 'default';
+          }
+        }
+      });
+
+      canvas.addEventListener('mousedown', (ev) => {
+        if (!state.editMode) return;
+        const p = getCanvasCoords(ev);
+        let best = null, bestD = 14;
+        for (let i = 0; i < 68; i++) {
+          const d = Math.hypot(state.baseLandmarks[i].x - p.x, state.baseLandmarks[i].y - p.y);
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        if (best !== null) { state.draggingPoint = best; canvas.style.cursor = 'grabbing'; }
+      });
+
+      window.addEventListener('mouseup', () => {
+        state.draggingPoint = null;
+        canvas.style.cursor = state.editMode && state.hoveredPoint !== null ? 'grab' : 'default';
+      });
+
+      // Mic & Text Form
+      micBtn.addEventListener('click', () => {
+        if (state.status === 'speaking') {
+          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+          state.speakingActive = false;
+          updateStatusUI('idle');
+          return;
+        }
+        if (state.recognition) {
+          state.recognition.stop();
+          state.recognition = null;
+          updateStatusUI('idle');
+          return;
+        }
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { showToast('Web Speech API недоступен в этом браузере. Используйте Chrome или Edge.'); return; }
+        const rec = new SR();
+        rec.lang = 'ru-RU';
+        rec.interimResults = true;
+        state.recognition = rec;
+        updateStatusUI('listening');
+        let gotFinal = false;
+        rec.onresult = (e) => {
+          let fin = '', int = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) fin += t; else int += t;
+          }
+          if (int) chatInput.value = int;
+          if (fin.trim() && !gotFinal) {
+            gotFinal = true;
+            chatInput.value = '';
+            handleUserMessage(fin.trim());
+          }
+        };
+        rec.onerror = (e) => { showToast('Микрофон: ' + e.error); };
+        rec.onend = () => { state.recognition = null; if (state.status === 'listening') updateStatusUI('idle'); };
+        rec.start();
+      });
+
+      chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const txt = chatInput.value.trim();
+        if (!txt) return;
+        chatInput.value = '';
+        handleUserMessage(txt);
+      });
+
+      document.getElementById('clearChatBtn').addEventListener('click', () => {
+        state.history = [];
+        chatList.innerHTML = '';
+        addMessage('avatar', 'История диалога очищена. Готов к новому разговору!', 'Офлайн');
+      });
+
+      document.getElementById('voiceSelect').addEventListener('change', (e) => state.brain.voiceURI = e.target.value);
+      document.getElementById('ollamaUrl').addEventListener('input', (e) => state.brain.ollamaUrl = e.target.value);
+      document.getElementById('ollamaModel').addEventListener('input', (e) => state.brain.ollamaModel = e.target.value);
+      document.getElementById('systemPrompt').addEventListener('input', (e) => state.brain.systemPrompt = e.target.value);
+
+      // LocalStorage Save / Restore
+      saveProfileBtn.addEventListener('click', () => {
+        try {
+          const payload = {
+            sourceType: state.sourceType,
+            demoId: state.demoId,
+            imageDataUrl: state.sourceType === 'custom' ? state.sourceCanvas.toDataURL('image/jpeg', 0.9) : undefined,
+            landmarks: state.baseLandmarks,
+            settings: state.settings,
+            brain: state.brain,
+            userName: state.userName,
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+          showToast('Профиль аватара сохранён в браузере');
+        } catch {
+          showToast('Не удалось сохранить профиль (слишком большое фото)');
+        }
+      });
+
+      function loadSavedProfile() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return false;
+          const p = JSON.parse(raw);
+          Object.assign(state.settings, p.settings || {});
+          Object.assign(state.brain, p.brain || {});
+          state.userName = p.userName || null;
+          if (state.userName) memoryInfo.textContent = 'Память имени: ' + state.userName;
+
+          document.getElementById('mouthAmpSlider').value = state.settings.mouthAmplitude;
+          document.getElementById('mouthAmpVal').textContent = state.settings.mouthAmplitude.toFixed(2) + '×';
+          document.getElementById('blinkFreqSlider').value = state.settings.blinkFrequency;
+          document.getElementById('blinkFreqVal').textContent = state.settings.blinkFrequency.toFixed(2) + '×';
+          document.getElementById('trackSlider').value = state.settings.headTracking;
+          document.getElementById('trackVal').textContent = state.settings.headTracking.toFixed(2) + '×';
+          document.getElementById('showMeshToggle').checked = !!state.settings.showMeshOverlay;
+          document.getElementById('ollamaUrl').value = state.brain.ollamaUrl;
+          document.getElementById('ollamaModel').value = state.brain.ollamaModel;
+          document.getElementById('systemPrompt').value = state.brain.systemPrompt;
+          document.getElementById('rateSlider').value = state.brain.speechRate;
+          document.getElementById('rateVal').textContent = state.brain.speechRate.toFixed(2) + '×';
+          document.getElementById('pitchSlider').value = state.brain.speechPitch;
+          document.getElementById('pitchVal').textContent = state.brain.speechPitch.toFixed(2);
+          document.querySelectorAll('[data-brain]').forEach((b) => b.classList.toggle('active', b.dataset.brain === state.brain.mode));
+          document.getElementById('ollamaSection').style.display = state.brain.mode === 'ollama' ? 'flex' : 'none';
+
+          if (p.sourceType === 'custom' && p.imageDataUrl && Array.isArray(p.landmarks) && p.landmarks.length === 68) {
+            const img = new Image();
+            img.onload = () => {
+              const c = document.createElement('canvas'); c.width = CANVAS_SIZE; c.height = CANVAS_SIZE;
+              c.getContext('2d').drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+              state.sourceType = 'custom';
+              state.sourceCanvas = c;
+              state.baseLandmarks = p.landmarks;
+              state.defaultLandmarks = p.landmarks.map((pt) => ({ x: pt.x, y: pt.y }));
+              document.querySelectorAll('[data-demo]').forEach((b) => b.classList.remove('active'));
+              rebuildMesh();
+            };
+            img.src = p.imageDataUrl;
+            return true;
+          } else if (p.demoId) {
+            const res = createDemoPortrait(p.demoId);
+            state.demoId = p.demoId;
+            state.sourceCanvas = res.canvas;
+            state.baseLandmarks = p.landmarks?.length === 68 ? p.landmarks : res.landmarks;
+            state.defaultLandmarks = res.landmarks.map((pt) => ({ x: pt.x, y: pt.y }));
+            document.querySelectorAll('[data-demo]').forEach((b) => b.classList.toggle('active', b.dataset.demo === p.demoId));
+            rebuildMesh();
+            return true;
+          }
+        } catch {}
+        return false;
+      }
+
+      // Initialize
+      if (!loadSavedProfile()) {
+        const res = createDemoPortrait('elena');
+        state.sourceCanvas = res.canvas;
+        state.baseLandmarks = res.landmarks;
+        state.defaultLandmarks = res.landmarks.map((p) => ({ x: p.x, y: p.y }));
+        rebuildMesh();
+      }
+
+      if ('speechSynthesis' in window) {
+        refreshVoices();
+        window.speechSynthesis.onvoiceschanged = refreshVoices;
+      }
+
+      addMessage('avatar', 'Привет! Загрузи любое фото лица или пообщайся со мной прямо сейчас. Я работаю полностью автономно без облачных ключей.', 'Офлайн');
+      updateStatusUI('idle');
+      requestAnimationFrame(renderFrame);
+    })();
+  </script>
+</body>
+</html>
